@@ -1,0 +1,69 @@
+{
+  "status": "NO_PATH",
+  "start": [
+    1,
+    2
+  ],
+  "goal": [
+    6,
+    2
+  ],
+  "position": [
+    1,
+    2
+  ],
+  "moves": 0,
+  "planning_calls": 1,
+  "replans": 0,
+  "nodes_expanded_total": 24,
+  "planning_ms_total": 0.057,
+  "trajectory": [
+    [
+      1,
+      2
+    ]
+  ],
+  "remaining_path": [],
+  "events": [
+    {
+      "type": "plan",
+      "position": [
+        1,
+        2
+      ],
+      "path": [],
+      "status": "NO_PATH"
+    }
+  ],
+  "map": {
+    "width": 8,
+    "height": 6,
+    "obstacles": [
+      [
+        4,
+        0
+      ],
+      [
+        4,
+        1
+      ],
+      [
+        4,
+        2
+      ],
+      [
+        4,
+        3
+      ],
+      [
+        4,
+        4
+      ],
+      [
+        4,
+        5
+      ]
+    ]
+  },
+  "assumptions": "Known grid; unit costs; four directions; point robot; no physical sensors."
+}

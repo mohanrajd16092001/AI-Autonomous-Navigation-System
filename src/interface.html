@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-Based Autonomous Navigation System</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #172033;
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 0 18px;
+    }
+
+    h1 {
+      font-size: 26px;
+    }
+
+    button {
+      background: #173b69;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 4px;
+      cursor: pointer;
+    }
+
+    canvas {
+      display: block;
+      background: white;
+      max-width: 100%;
+      border: 1px solid #cbd5e1;
+      margin-top: 18px;
+    }
+
+    #status {
+      font-weight: bold;
+    }
+
+    #files {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .legend {
+      line-height: 1.8;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>AI-Based Autonomous Navigation System</h1>
+  <p>Virtual robot navigation using A* path planning.</p>
+
+  <div>
+    <button onclick="stop(); action('plan')">Plan</button>
+    <button onclick="running = !running">Run / Pause</button>
+    <button onclick="stop(); action('step')">Step</button>
+    <button onclick="stop(); action('reset')">Reset</button>
+    <button onclick="action('save')">Save evidence</button>
+  </div>
+
+  <p>
+    <label>
+      Movement interval:
+      <input id="speed" type="range"
+             min="40" max="600" value="160">
+      milliseconds
+    </label>
+  </p>
+
+  <canvas id="map" aria-label="Robot navigation map"></canvas>
+
+  <p id="status" role="status">Connecting to simulation...</p>
+
+  <p class="legend">
+    Click a cell to add or remove an obstacle.<br>
+    Green S: start | Red G: goal | Blue R: robot<br>
+    Amber: remaining route | Cyan: travelled path<br>
+    Reset restores the original map.
+  </p>
+
+  <p id="files"></p>
+
+  <script>
+    const token = "__TOKEN__";
+    const canvas = document.getElementById("map");
+    const context = canvas.getContext("2d");
+
+    let state;
+    let scale;
+    let running = false;
+    let busy = false;
+
+    function stop() {
+      running = false;
+    }
+
+    async function action(kind, cell) {
+      if (busy) return;
+      busy = true;
+
+      try {
+        const response = await fetch("/action", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Session": token
+          },
+          body: JSON.stringify({ kind, cell })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error);
+        }
+
+        state = data;
+        draw();
+
+        if (data.files) {
+          document.getElementById("files").textContent =
+            "Saved:\n" + data.files.join("\n");
+        }
+
+        if (["ARRIVED", "NO_PATH"].includes(state.status)) {
+          stop();
+        }
+      } catch (error) {
+        stop();
+        document.getElementById("status").textContent =
+          error.message;
+      } finally {
+        busy = false;
+      }
+    }
+
+    function drawPath(path, color) {
+      if (path.length < 2) return;
+
+      context.beginPath();
+
+      path.forEach(([x, y], index) => {
+        const centerX = (x + 0.5) * scale;
+        const centerY = (y + 0.5) * scale;
+
+        if (index === 0) {
+          context.moveTo(centerX, centerY);
+        } else {
+          context.lineTo(centerX, centerY);
+        }
+      });
+
+      context.strokeStyle = color;
+      context.lineWidth = 4;
+      context.stroke();
+    }
+
+    function drawMarker(cell, color, label) {
+      const [x, y] = cell;
+      const centerX = (x + 0.5) * scale;
+      const centerY = (y + 0.5) * scale;
+
+      context.beginPath();
+      context.arc(
+        centerX, centerY, scale * 0.35, 0, Math.PI * 2
+      );
+      context.fillStyle = color;
+      context.fill();
+
+      if (scale > 19) {
+        context.fillStyle = "white";
+        context.font = "14px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(label, centerX, centerY);
+      }
+    }
+
+    function draw() {
+      const map = state.map;
+
+      scale = Math.min(
+        38,
+        960 / map.width,
+        650 / map.height
+      );
+
+      canvas.width = map.width * scale;
+      canvas.height = map.height * scale;
+
+      const blocked = new Set(
+        map.obstacles.map(cell => cell.join(","))
+      );
+
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          const isBlocked = blocked.has([x, y].join(","));
+
+          context.fillStyle = isBlocked
+            ? "#334155"
+            : "#ffffff";
+
+          context.fillRect(
+            x * scale, y * scale, scale, scale
+          );
+
+          context.strokeStyle = "#cbd5e1";
+          context.strokeRect(
+            x * scale, y * scale, scale, scale
+          );
+        }
+      }
+
+      drawPath(state.trajectory, "#0891b2");
+      drawPath(state.remaining_path, "#f59e0b");
+
+      drawMarker(state.start, "#16a34a", "S");
+      drawMarker(state.goal, "#dc2626", "G");
+      drawMarker(state.position, "#2563eb", "R");
+
+      document.getElementById("status").textContent =
+        `${state.status} | Moves: ${state.moves}` +
+        ` | Plans: ${state.planning_calls}` +
+        ` | Nodes explored: ${state.nodes_expanded_total}` +
+        ` | Planning time: ${state.planning_ms_total} ms`;
+    }
+
+    canvas.addEventListener("click", event => {
+      if (!state) return;
+
+      const bounds = canvas.getBoundingClientRect();
+
+      const x = Math.floor(
+        (event.clientX - bounds.left) *
+        canvas.width / bounds.width / scale
+      );
+
+      const y = Math.floor(
+        (event.clientY - bounds.top) *
+        canvas.height / bounds.height / scale
+      );
+
+      action("obstacle", [x, y]);
+    });
+
+    async function tick() {
+      if (running) {
+        await action("step");
+      }
+
+      const interval = Number(
+        document.getElementById("speed").value
+      );
+
+      setTimeout(tick, interval);
+    }
+
+    action("state");
+    tick();
+  </script>
+</body>
+</html>

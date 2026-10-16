@@ -193,3 +193,18 @@ Possible extensions from the project brief include camera input, object and lane
 ## Author
 
 Mohan Raj D.
+
+## Demo screenshots
+
+### Successful navigation
+The robot reached the goal in 46 moves.
+
+![Successful navigation](evidence/successful-navigation.png)
+
+### Obstacle replanning
+The robot reached the goal after added obstacles caused route replanning.
+
+![Obstacle replanning](evidence/obstacle-replanning.png)
+
+### Published repository
+![GitHub repository](evidence/github-repository.png)
